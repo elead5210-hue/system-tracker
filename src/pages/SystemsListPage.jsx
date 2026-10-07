@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createSystem, deleteSystem, listSystems } from '../db/systemsStore.js';
 import NewSystemModal from '../components/NewSystemModal.jsx';
+import { downloadExport, importDataFromZip } from '../db/dataTransfer.js';
 
 export default function SystemsListPage() {
   const [systems, setSystems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [transferMessage, setTransferMessage] = useState(null);
+  const importInputRef = useRef(null);
 
   const loadSystems = useCallback(async () => {
     try {
@@ -44,13 +47,58 @@ export default function SystemsListPage() {
     }
   }
 
+  async function handleExport() {
+    try {
+      await downloadExport();
+      setTransferMessage('Data exported successfully.');
+      setError(null);
+    } catch (err) {
+      setTransferMessage(null);
+      setError(err && err.message ? err.message : 'Failed to export data.');
+    }
+  }
+
+  async function handleImportFileChange(event) {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+    try {
+      const result = await importDataFromZip(file);
+      setTransferMessage(
+        `Imported ${result.systems} system(s) and ${result.projects} project(s).`
+      );
+      setError(null);
+      await loadSystems();
+    } catch (err) {
+      setTransferMessage(null);
+      setError(err && err.message ? err.message : 'Failed to import data.');
+    }
+  }
+
   return (
     <main>
       <h1>Systems</h1>
 
       <button type="button" onClick={() => setShowModal(true)}>
         New system
+      </button>{' '}
+      <button type="button" onClick={handleExport}>
+        Export
+      </button>{' '}
+      <button type="button" onClick={() => importInputRef.current && importInputRef.current.click()}>
+        Import
       </button>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        onChange={handleImportFileChange}
+        style={{ display: 'none' }}
+      />
+
+      {transferMessage && <p role="status">{transferMessage}</p>}
 
       {showModal && (
         <NewSystemModal
