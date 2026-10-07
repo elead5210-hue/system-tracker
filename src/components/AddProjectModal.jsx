@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { saveProjectDescription } from '../db/projectsStore.js';
+import { validateProjectResponse } from '../utils/projectResponseSchema.js';
 
 const overlayStyle = {
   position: 'fixed',
@@ -49,6 +51,27 @@ const errorStyle = {
   marginBottom: 12,
 };
 
+const textareaStyle = {
+  padding: '8px 10px',
+  fontSize: 13,
+  fontFamily: 'monospace',
+  border: '1px solid #bbb',
+  borderRadius: 4,
+  boxSizing: 'border-box',
+  width: '100%',
+  minHeight: 180,
+  resize: 'vertical',
+};
+
+const errorListStyle = {
+  color: '#b00020',
+  fontSize: 13,
+  margin: '0 0 12px',
+  paddingLeft: 20,
+  maxHeight: 120,
+  overflowY: 'auto',
+};
+
 const actionsStyle = {
   display: 'flex',
   justifyContent: 'flex-end',
@@ -96,10 +119,12 @@ function validateZipFile(file) {
   return '';
 }
 
-export default function AddProjectModal({ onClose, onSubmit }) {
+export default function AddProjectModal({ onClose, onSubmit, systemId, onSaved }) {
   const [mode, setMode] = useState('github');
   const [githubUrl, setGithubUrl] = useState('');
   const [zipFile, setZipFile] = useState(null);
+  const [responseText, setResponseText] = useState('');
+  const [responseErrors, setResponseErrors] = useState([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const firstInputRef = useRef(null);
@@ -123,11 +148,43 @@ export default function AddProjectModal({ onClose, onSubmit }) {
   function switchMode(next) {
     setMode(next);
     setError('');
+    setResponseErrors([]);
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
     if (submitting) {
+      return;
+    }
+
+    if (mode === 'response') {
+      const result = validateProjectResponse(responseText);
+      if (!result.valid) {
+        setError('');
+        setResponseErrors(result.errors);
+        return;
+      }
+      if (!systemId) {
+        setResponseErrors([]);
+        setError('No system is selected to save this project description to.');
+        return;
+      }
+      setError('');
+      setResponseErrors([]);
+      setSubmitting(true);
+      try {
+        const saved = await saveProjectDescription(systemId, result.data);
+        if (typeof onSaved === 'function') {
+          await onSaved(saved);
+        } else if (typeof onClose === 'function') {
+          onClose();
+        }
+      } catch (err) {
+        setError(err && err.message ? err.message : 'Could not save the project description.');
+        setSubmitting(false);
+        return;
+      }
+      setSubmitting(false);
       return;
     }
 
@@ -205,9 +262,35 @@ export default function AddProjectModal({ onClose, onSubmit }) {
           >
             Upload zip
           </button>
+          <button
+            type="button"
+            style={tabButtonStyle(mode === 'response')}
+            onClick={() => switchMode('response')}
+            aria-pressed={mode === 'response'}
+          >
+            Paste AI response
+          </button>
         </div>
 
-        {mode === 'github' ? (
+        {mode === 'response' ? (
+          <div style={fieldStyle}>
+            <label htmlFor="add-project-ai-response">AI response (JSON)</label>
+            <textarea
+              id="add-project-ai-response"
+              ref={firstInputRef}
+              style={textareaStyle}
+              value={responseText}
+              placeholder="Paste the JSON response from the AI here"
+              onChange={(event) => {
+                setResponseText(event.target.value);
+                if (error) setError('');
+                if (responseErrors.length > 0) setResponseErrors([]);
+              }}
+              disabled={submitting}
+              spellCheck={false}
+            />
+          </div>
+        ) : mode === 'github' ? (
           <div style={fieldStyle}>
             <label htmlFor="add-project-github-url">Public GitHub repository link</label>
             <input
@@ -254,12 +337,26 @@ export default function AddProjectModal({ onClose, onSubmit }) {
           </div>
         ) : null}
 
+        {responseErrors.length > 0 ? (
+          <ul style={errorListStyle} role="alert">
+            {responseErrors.map((message, index) => (
+              <li key={index}>{message}</li>
+            ))}
+          </ul>
+        ) : null}
+
         <div style={actionsStyle}>
           <button type="button" onClick={onClose} disabled={submitting}>
             Cancel
           </button>
           <button type="submit" disabled={submitting}>
-            {submitting ? 'Adding...' : 'Add project'}
+            {mode === 'response'
+              ? submitting
+                ? 'Saving...'
+                : 'Save response'
+              : submitting
+                ? 'Adding...'
+                : 'Add project'}
           </button>
         </div>
       </form>

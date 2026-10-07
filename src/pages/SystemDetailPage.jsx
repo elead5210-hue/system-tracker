@@ -4,16 +4,30 @@ import { getSystem } from '../db/systemsStore.js';
 import {
   createProject,
   deleteProject,
+  listProjectDescriptions,
   listProjectsBySystem,
   saveProjectSource,
 } from '../db/projectsStore.js';
 import AddProjectModal from '../components/AddProjectModal.jsx';
 import GeneratePromptModal from '../components/GeneratePromptModal.jsx';
+import ProjectCard from '../components/ProjectCard.jsx';
+
+const BASE_RECORD_FIELDS = ['id', 'systemId', 'name', 'createdAt', 'updatedAt'];
+
+// A saved project description is a record without a source type that carries
+// fields beyond the basic record fields (i.e. the processed AI response).
+function isProjectDescription(project) {
+  if (!project || project.sourceType) {
+    return false;
+  }
+  return Object.keys(project).some((key) => BASE_RECORD_FIELDS.indexOf(key) === -1);
+}
 
 export default function SystemDetailPage() {
   const { id } = useParams();
   const [system, setSystem] = useState(null);
   const [projects, setProjects] = useState([]);
+  const [descriptions, setDescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [newName, setNewName] = useState('');
@@ -27,12 +41,15 @@ export default function SystemDetailPage() {
       if (!foundSystem) {
         setSystem(null);
         setProjects([]);
+        setDescriptions([]);
         setError(null);
         return;
       }
       const systemProjects = await listProjectsBySystem(id);
+      const systemDescriptions = await listProjectDescriptions(id);
       setSystem(foundSystem);
       setProjects(systemProjects);
+      setDescriptions(systemDescriptions.filter(isProjectDescription));
       setError(null);
     } catch (err) {
       setError(err && err.message ? err.message : 'Failed to load system.');
@@ -73,6 +90,11 @@ export default function SystemDetailPage() {
     await loadData();
   }
 
+  async function handleDescriptionSaved() {
+    setShowAddModal(false);
+    await loadData();
+  }
+
   async function handleDelete(project) {
     const label = project.name || 'this project';
     if (!window.confirm(`Delete ${label}?`)) {
@@ -85,6 +107,8 @@ export default function SystemDetailPage() {
       setError(err && err.message ? err.message : 'Failed to delete project.');
     }
   }
+
+  const sourceProjects = projects.filter((project) => !isProjectDescription(project));
 
   if (loading) {
     return (
@@ -139,11 +163,11 @@ export default function SystemDetailPage() {
 
       {error && <p role="alert">{error}</p>}
 
-      {projects.length === 0 ? (
+      {sourceProjects.length === 0 ? (
         <p>No projects yet. Add one above to get started.</p>
       ) : (
         <ul>
-          {projects.map((project) => (
+          {sourceProjects.map((project) => (
             <li key={project.id}>
               {project.name || 'Untitled project'}{' '}
               <button type="button" onClick={() => setPromptProject(project)}>
@@ -157,10 +181,30 @@ export default function SystemDetailPage() {
         </ul>
       )}
 
+      <h2>Project descriptions</h2>
+
+      {descriptions.length === 0 ? (
+        <p>No project descriptions yet. Paste an AI response from Add project to save one.</p>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: 16,
+          }}
+        >
+          {descriptions.map((description) => (
+            <ProjectCard key={description.id} project={description} />
+          ))}
+        </div>
+      )}
+
       {showAddModal && (
         <AddProjectModal
           onClose={() => setShowAddModal(false)}
           onSubmit={handleAddProjectSource}
+          systemId={system.id}
+          onSaved={handleDescriptionSaved}
         />
       )}
 
