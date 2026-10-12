@@ -49,8 +49,8 @@ export default function SystemsListPage() {
 
   async function handleExport() {
     try {
-      await downloadExport();
-      setTransferMessage('Data exported successfully.');
+      const fileName = await downloadExport();
+      setTransferMessage(`Data exported to ${fileName}.`);
       setError(null);
     } catch (err) {
       setTransferMessage(null);
@@ -93,7 +93,7 @@ export default function SystemsListPage() {
       <input
         ref={importInputRef}
         type="file"
-        accept=".zip,application/zip"
+        accept=".json,application/json,.zip,application/zip"
         onChange={handleImportFileChange}
         style={{ display: 'none' }}
       />

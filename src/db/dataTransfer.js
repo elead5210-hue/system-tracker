@@ -34,12 +34,22 @@ export async function exportDataToZip() {
 }
 
 /**
- * Exports the database to a zip file and downloads it to the user's machine.
+ * Generates the JSON object from the database and returns it as a .json Blob
+ * that can be downloaded.
+ */
+export async function exportDataToJson() {
+  const data = await buildExportData();
+  const json = JSON.stringify(data, null, 2);
+  return new Blob([json], { type: 'application/json' });
+}
+
+/**
+ * Exports the database to a .json file and downloads it to the user's machine.
  */
 export async function downloadExport() {
-  const blob = await exportDataToZip();
+  const blob = await exportDataToJson();
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const fileName = `system-tracker-export-${stamp}.zip`;
+  const fileName = `system-tracker-export-${stamp}.json`;
 
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -90,6 +100,27 @@ export function parseZipData(zipBytes) {
   return data;
 }
 
+/**
+ * Parses exported JSON text (the contents of a .json export file).
+ */
+export function parseJsonData(text) {
+  let data;
+  try {
+    data = JSON.parse(text.replace(/^\uFEFF/, ''));
+  } catch (error) {
+    throw new Error('The selected file is not valid JSON.');
+  }
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('The JSON data file has an unexpected structure.');
+  }
+  if (!Array.isArray(data.systems) || !Array.isArray(data.projects)) {
+    throw new Error('The JSON data file must contain systems and projects lists.');
+  }
+
+  return data;
+}
+
 function putRecord(store, record) {
   if (store.keyPath === null || store.keyPath === undefined) {
     return store.put(record, record.id);
@@ -122,14 +153,17 @@ export async function seedDatabase(data) {
 }
 
 /**
- * Reads a zip File chosen by the user, unzips and parses it, and seeds the
- * data into IndexedDB. Returns the number of systems and projects imported.
+ * Reads a .json or .zip export File chosen by the user, parses it (unzipping
+ * first when it is a zip), and seeds the data into IndexedDB. Returns the
+ * number of systems and projects imported.
  */
 export async function importDataFromZip(file) {
   if (!file) {
     throw new Error('No file was selected for import.');
   }
   const buffer = await file.arrayBuffer();
-  const data = parseZipData(new Uint8Array(buffer));
+  const bytes = new Uint8Array(buffer);
+  const isZip = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+  const data = isZip ? parseZipData(bytes) : parseJsonData(strFromU8(bytes));
   return seedDatabase(data);
 }
