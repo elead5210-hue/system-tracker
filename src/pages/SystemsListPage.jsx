@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { createSystem, deleteSystem, listSystems } from '../db/systemsStore.js';
 import NewSystemModal from '../components/NewSystemModal.jsx';
 import { downloadExport, importDataFromZip } from '../db/dataTransfer.js';
+import { Button } from "@persistent-spirits/ui";
+
 
 export default function SystemsListPage() {
   const [systems, setSystems] = useState([]);
@@ -84,6 +86,7 @@ export default function SystemsListPage() {
       <button type="button" onClick={() => setShowModal(true)}>
         New system
       </button>{' '}
+      <Button variant="primary" onClick={handleSave}>This is the button i want</Button>
       <button type="button" onClick={handleExport}>
         Export
       </button>{' '}

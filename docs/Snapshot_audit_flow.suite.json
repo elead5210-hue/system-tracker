@@ -1,0 +1,431 @@
+{
+  "format": "api-batch-runner.suite",
+  "version": 1,
+  "exportedAt": "2026-10-31T07:26:02.468Z",
+  "secretsIncluded": false,
+  "suite": {
+    "id": "cca5176d-4753-47e8-90e4-b8db8aa056d0",
+    "name": "Snapshot audit flow",
+    "description": "Login, then drive the snapshot draft flow (stage A prompt, duplicate rejection, stage B prompt) and clean up. Creates no permanent snapshot.",
+    "baseUrl": "http://192.168.1.66:20000",
+    "variables": [
+      {
+        "name": "email",
+        "value": "paul@pened.co.za"
+      },
+      {
+        "name": "password",
+        "value": "",
+        "secret": true
+      },
+      {
+        "name": "projectId",
+        "value": "77612316-7cf2-427f-a64c-b43b56bd44dd"
+      }
+    ],
+    "requests": [
+      {
+        "name": "1. Login",
+        "method": "POST",
+        "url": "/api/auth/login",
+        "body": {
+          "type": "json",
+          "content": "{\"email\": \"{{email}}\", \"password\": \"{{password}}\"}"
+        },
+        "timeoutMs": 10000,
+        "expectedStatus": 200,
+        "extractionRules": [
+          {
+            "variableName": "userId",
+            "source": "body",
+            "path": "user.id",
+            "id": "370c4cca-08b5-4ffe-9a87-99a77f22f9eb",
+            "lastValue": "dc924b29-6d8b-4449-967a-e420baec2d12",
+            "lastExtractedAt": 1793431543277
+          },
+          {
+            "variableName": "authToken",
+            "source": "body",
+            "path": "token",
+            "secret": true,
+            "id": "5efef057-a3a1-4624-a44f-db86b62e5df8"
+          }
+        ],
+        "assertions": [
+          {
+            "source": "status",
+            "operator": "equals",
+            "value": 200
+          },
+          {
+            "source": "body",
+            "path": "token",
+            "operator": "exists"
+          }
+        ],
+        "id": "bd2ca04e-08f0-4afd-9fbf-c637bbb59499",
+        "headers": [],
+        "queryParams": [],
+        "auth": {
+          "type": "none"
+        },
+        "enabled": true,
+        "orderIndex": 0
+      },
+      {
+        "name": "2. Who am I",
+        "method": "GET",
+        "url": "/api/auth/me",
+        "auth": {
+          "type": "bearer",
+          "token": "{{authToken}}"
+        },
+        "timeoutMs": 10000,
+        "expectedStatus": 200,
+        "assertions": [
+          {
+            "source": "status",
+            "operator": "equals",
+            "value": 200
+          },
+          {
+            "source": "body",
+            "path": "user.id",
+            "operator": "exists"
+          }
+        ],
+        "id": "b464fb04-a13a-4b15-b5ec-d1346e560f20",
+        "headers": [],
+        "queryParams": [],
+        "body": {
+          "type": "none",
+          "content": ""
+        },
+        "extractionRules": [],
+        "enabled": true,
+        "orderIndex": 1
+      },
+      {
+        "name": "3. List projects",
+        "method": "GET",
+        "url": "http:///192.168.1.66:20000/api/projects",
+        "auth": {
+          "type": "bearer",
+          "token": "{{authToken}}"
+        },
+        "timeoutMs": 10000,
+        "expectedStatus": 200,
+        "assertions": [
+          {
+            "source": "status",
+            "operator": "equals",
+            "value": 200
+          },
+          {
+            "source": "body",
+            "path": "projects[0].project_id",
+            "operator": "exists"
+          }
+        ],
+        "id": "75f3bfb8-4b19-4cdb-b72c-42a0cf51ce73",
+        "headers": [],
+        "queryParams": [],
+        "body": {
+          "type": "none",
+          "content": ""
+        },
+        "extractionRules": [
+          {
+            "id": "rule_qyva4y70mvvzzybm",
+            "variableName": "projectId",
+            "source": "body",
+            "path": "projects[0].project_id",
+            "lastValue": "77612316-7cf2-427f-a64c-b43b56bd44dd",
+            "lastExtractedAt": 1793431543292
+          }
+        ],
+        "enabled": true,
+        "orderIndex": 2,
+        "followRedirects": true
+      },
+      {
+        "name": "4. List snapshots",
+        "method": "GET",
+        "url": "http://192.168.1.66:20000/api/projects/{{projectId}}/snapshots?limit=5",
+        "auth": {
+          "type": "bearer",
+          "token": "{{authToken}}"
+        },
+        "description": "Status only: the page shape and count depend on how many snapshots already exist.",
+        "timeoutMs": 10000,
+        "expectedStatus": 200,
+        "assertions": [
+          {
+            "source": "status",
+            "operator": "equals",
+            "value": 200
+          }
+        ],
+        "id": "64bd766f-1f97-4126-8724-b7e236622a2b",
+        "headers": [],
+        "queryParams": [],
+        "body": {
+          "type": "none",
+          "content": ""
+        },
+        "extractionRules": [],
+        "enabled": true,
+        "orderIndex": 3,
+        "followRedirects": true
+      },
+      {
+        "name": "5. Create draft (stage A prompt)",
+        "method": "POST",
+        "url": "http://192.168.1.66:20000/api/projects/{{projectId}}/snapshot-drafts",
+        "auth": {
+          "type": "bearer",
+          "token": "{{authToken}}"
+        },
+        "description": "Needs a project with no open draft and a connected repository.",
+        "body": {
+          "type": "json",
+          "content": "{\"mode\": \"full\"}"
+        },
+        "timeoutMs": 60000,
+        "expectedStatus": 201,
+        "extractionRules": [
+          {
+            "id": "rule_ebqxudqhmvw1datl",
+            "variableName": "draftId",
+            "source": "body",
+            "path": "draft.id",
+            "lastValue": "draft-dcf93e7f-6092-4dc8-9fed-52a134458ef6",
+            "lastExtractedAt": 1793431543306
+          },
+          {
+            "id": "rule_mvw1xp4gpyxz",
+            "variableName": "id",
+            "source": "body",
+            "path": "draft.id",
+            "lastValue": "draft-dcf93e7f-6092-4dc8-9fed-52a134458ef6",
+            "lastExtractedAt": 1793431543306
+          }
+        ],
+        "assertions": [
+          {
+            "source": "status",
+            "operator": "equals",
+            "value": 201
+          }
+        ],
+        "id": "2bcc40ac-e613-4f8a-8bf5-79b83e9f1387",
+        "headers": [],
+        "queryParams": [],
+        "enabled": true,
+        "orderIndex": 4,
+        "followRedirects": true
+      },
+      {
+        "name": "6. Second draft is rejected",
+        "method": "POST",
+        "url": "http://192.168.1.66:20000/api/projects/{{projectId}}/snapshot-drafts",
+        "auth": {
+          "type": "bearer",
+          "token": "{{authToken}}"
+        },
+        "body": {
+          "type": "json",
+          "content": "{\"mode\": \"full\"}"
+        },
+        "timeoutMs": 60000,
+        "expectedStatus": 409,
+        "assertions": [
+          {
+            "source": "status",
+            "operator": "equals",
+            "value": 409
+          },
+          {
+            "source": "body",
+            "path": "error.code",
+            "operator": "equals",
+            "value": "draft_exists"
+          },
+          {
+            "source": "body",
+            "path": "error.draft_id",
+            "operator": "exists"
+          }
+        ],
+        "id": "c2aa7a68-9730-433f-a6d1-75ed68c2b1cf",
+        "headers": [],
+        "queryParams": [],
+        "extractionRules": [
+          {
+            "id": "rule_i6w9zy9gmvw1uuaj",
+            "variableName": "deleteDraftId",
+            "source": "body",
+            "path": "error.draft_id",
+            "lastValue": "draft-dcf93e7f-6092-4dc8-9fed-52a134458ef6",
+            "lastExtractedAt": 1793431543318
+          }
+        ],
+        "enabled": true,
+        "orderIndex": 5,
+        "followRedirects": true
+      },
+      {
+        "name": "7. Read the draft back",
+        "method": "GET",
+        "url": "/api/snapshot-drafts/{{draftId}}",
+        "auth": {
+          "type": "bearer",
+          "token": "{{authToken}}"
+        },
+        "timeoutMs": 60000,
+        "expectedStatus": 200,
+        "assertions": [
+          {
+            "source": "status",
+            "operator": "equals",
+            "value": 200
+          },
+          {
+            "source": "body",
+            "path": "draft.status",
+            "operator": "equals",
+            "value": "open"
+          },
+          {
+            "source": "body",
+            "path": "prompt",
+            "operator": "contains",
+            "value": "STAGE A of 2: request files"
+          }
+        ],
+        "id": "78b61032-e50d-44b2-83db-f4fc5bcc93d9",
+        "headers": [],
+        "queryParams": [],
+        "body": {
+          "type": "none",
+          "content": ""
+        },
+        "extractionRules": [],
+        "enabled": true,
+        "orderIndex": 6
+      },
+      {
+        "name": "8. Submit file list (stage B prompt)",
+        "method": "POST",
+        "url": "/api/snapshot-drafts/{{draftId}}/file-list",
+        "auth": {
+          "type": "bearer",
+          "token": "{{authToken}}"
+        },
+        "description": "The listed paths must exist in the connected repository.",
+        "body": {
+          "type": "json",
+          "content": "{\"reply\": \"{\\\"files\\\": [{\\\"path\\\": \\\"src/main.tsx\\\", \\\"reason\\\": \\\"entry point\\\"}, {\\\"path\\\": \\\"src/App.tsx\\\", \\\"reason\\\": \\\"root component\\\"}]}\"}"
+        },
+        "timeoutMs": 60000,
+        "expectedStatus": 200,
+        "assertions": [
+          {
+            "source": "status",
+            "operator": "equals",
+            "value": 200
+          },
+          {
+            "source": "body",
+            "path": "draft.step",
+            "operator": "equals",
+            "value": "awaiting_snapshot"
+          },
+          {
+            "source": "body",
+            "path": "prompt",
+            "operator": "contains",
+            "value": "STAGE B"
+          }
+        ],
+        "id": "3be44243-157f-442a-824f-f0e2e7a8a50f",
+        "headers": [],
+        "queryParams": [],
+        "extractionRules": [],
+        "enabled": true,
+        "orderIndex": 7
+      },
+      {
+        "name": "9. Discard the draft (cleanup)",
+        "method": "DELETE",
+        "url": "http://192.168.1.66:20000/api/snapshot-drafts/{{draftId}}",
+        "auth": {
+          "type": "bearer",
+          "token": "{{authToken}}"
+        },
+        "timeoutMs": 10000,
+        "expectedStatus": 200,
+        "assertions": [
+          {
+            "source": "status",
+            "operator": "equals",
+            "value": 200
+          },
+          {
+            "source": "body",
+            "path": "draft.id",
+            "operator": "exists"
+          }
+        ],
+        "id": "4b73b7f0-4f98-4439-8e35-4751c4baf912",
+        "headers": [],
+        "queryParams": [],
+        "body": {
+          "type": "none",
+          "content": ""
+        },
+        "extractionRules": [],
+        "enabled": true,
+        "orderIndex": 8,
+        "followRedirects": true
+      },
+      {
+        "name": "10. Draft is no longer open",
+        "method": "GET",
+        "url": "/api/snapshot-drafts/{{draftId}}",
+        "auth": {
+          "type": "bearer",
+          "token": "{{authToken}}"
+        },
+        "timeoutMs": 10000,
+        "expectedStatus": 200,
+        "assertions": [
+          {
+            "source": "status",
+            "operator": "equals",
+            "value": 200
+          },
+          {
+            "source": "body",
+            "path": "draft.status",
+            "operator": "notEquals",
+            "value": "open"
+          }
+        ],
+        "id": "c3064fb1-3233-43b3-acd1-9ef3b7bf78cf",
+        "headers": [],
+        "queryParams": [],
+        "body": {
+          "type": "none",
+          "content": ""
+        },
+        "extractionRules": [],
+        "enabled": true,
+        "orderIndex": 9
+      }
+    ],
+    "failureBehavior": "continue",
+    "createdAt": "2026-10-31T06:04:16.508Z",
+    "updatedAt": "2026-10-31T07:25:43.318Z"
+  }
+}
